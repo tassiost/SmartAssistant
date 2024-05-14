@@ -2,7 +2,6 @@ streamlit
 streamlit_chat
 asyncio
 sseclient
-sys
 requests
 json
 base64
