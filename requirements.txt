@@ -1,6 +1,7 @@
 streamlit
 streamlit_chat
 asyncio
-sseclient
+sseclient-py
 requests
-gtts
+gTTS
+six==1.15.0
