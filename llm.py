@@ -14,6 +14,10 @@ from io import BytesIO
 import streamlit as st
 import streamlit_chat
 
+#Record
+from streamlit_mic_recorder import mic_recorder, speech_to_text
+
+
 # For local streaming, the websockets are hosted without ssl - ws://
 PORT = 7860                         #default port
 HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
@@ -21,7 +25,7 @@ HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
 # For reverse-proxied streaming, the remote will likely host with ssl - wss://
 # URI = 'wss://your-uri-here.trycloudflare.com/api/v1/stream'
 
-URIprefixValue = "cream-trusts-florence-tamil"
+URIprefixValue = "wherever-keyboard-lived-meter"
 
 st.set_page_config(
     page_title="Chat",
@@ -124,9 +128,9 @@ example_user_prompts = [
     "what is your real name?",
     "what is your purpose?",
     "echo Hello World!",
-    "How old is Elon Musk?",
-    "What makes a good joke?",
-    "Tell me a haiku.",
+    "how old is Elon Musk?",
+    "what makes a good joke?",
+    "tell me a haiku.",
     "what is the first question I asked?",
 ]
 
@@ -185,7 +189,7 @@ def chat():
 
     #Example conversation
     if st.sidebar.button("Show Example Conversation", key='show_example_conversation'):
-        #st.session_state.messages = [] # don't clear current conversations?
+        #st.session_state.messages = []                         #don't clear current conversations?
         for i,up in enumerate(example_user_prompts):
             st.session_state.messages.append({"role": "user", "content": up})
             assistant_content = complete_messages(i,len(example_user_prompts), True, False, False)
@@ -212,25 +216,11 @@ def chat():
             if (ttsOn): TTS(assistant_content)
             move_focus()
 
-    #Assign keys to chat messages
-    for i,message in enumerate(st.session_state.messages):
-        nkey = int(i/2)
-        if message["role"] == "user":
-            streamlit_chat.message(message["content"], is_user=True, key='chat_messages_user_'+str(nkey))
-        else:
-            streamlit_chat.message(message["content"], is_user=False, key='chat_messages_assistant_'+str(nkey))
+    
 
     #Chat input
     if user_content := st.chat_input("Start typing..."): # using streamlit's st.chat_input because it stays put at bottom, chat.openai.com style.
-        nkey = int(len(st.session_state.messages)/2)
-        st.session_state.messages.append({"role": "user", "content": user_content})
-        streamlit_chat.message(user_content, is_user=True, key='chat_messages_user_'+str(nkey))
-        
-        assistant_content = complete_messages(0,1, True, False, False)
-        st.session_state.messages.append({"role": "assistant", "content": assistant_content})
-        streamlit_chat.message(assistant_content, key='chat_messages_assistant_'+str(nkey))
-
-        if (ttsOn): TTS(assistant_content)
+        this(user_content)
         
         #debug
         print("-------------------------Messages---------------------")
@@ -265,6 +255,41 @@ def TTS(txt):
 
     #st.audio(sound_file, autoplay=True)                                                        #autoplay doesnt seem to work
 
+def this(input):
+    #Assign keys to chat messages
+    for i,message in enumerate(st.session_state.messages):
+        nkey = int(i/2)
+        if message["role"] == "user":
+            streamlit_chat.message(message["content"], is_user=True, key='chat_messages_user_'+str(nkey))
+        else:
+            streamlit_chat.message(message["content"], is_user=False, key='chat_messages_assistant_'+str(nkey))
+
+    nkey = int(len(st.session_state.messages)/2 + 1)
+    st.session_state.messages.append({"role": "user", "content": input})
+    streamlit_chat.message(input, is_user=True, key='chat_messages_user_'+str(nkey))
+    
+    assistant_content = complete_messages(0,1, True, False, False)
+    st.session_state.messages.append({"role": "assistant", "content": assistant_content})
+    streamlit_chat.message(assistant_content, key='chat_messages_assistant_'+str(nkey))
+
+    if (ttsOn): TTS(assistant_content)
+
+def callback():
+    if st.session_state.my_stt_output:
+        this(st.session_state.my_stt_output)
+        #st.write(st.session_state.my_stt_output)
+
+speech_to_text(
+    language='en',
+    start_prompt="Start recording",
+    stop_prompt="Stop recording",
+    just_once=True,
+    use_container_width=False,
+    args=(),
+    kwargs={},
+    key='my_stt', 
+    callback=callback)
+
 def userid_change():
     st.session_state.userid = st.session_state.userid_input
 
@@ -272,4 +297,4 @@ def main():
     chat()
 
 if __name__ == '__main__':
-    main()    
+    main()
