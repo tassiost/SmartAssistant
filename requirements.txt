@@ -5,3 +5,4 @@ sseclient-py
 requests
 gTTS
 six==1.15.0
+streamlit-mic-recorder
