@@ -6,6 +6,8 @@ import requests     #api call
 import json         #api call
 import base64       #encode audio
 
+import time         #timer
+
 #TTS
 from gtts import gTTS
 from io import BytesIO
@@ -17,15 +19,13 @@ import streamlit_chat
 #Record
 from streamlit_mic_recorder import mic_recorder, speech_to_text
 
-
 # For local streaming, the websockets are hosted without ssl - ws://
 PORT = 7860                         #default port
 HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
 
 # For reverse-proxied streaming, the remote will likely host with ssl - wss://
 # URI = 'wss://your-uri-here.trycloudflare.com/api/v1/stream'
-
-URIprefixValue = "wherever-keyboard-lived-meter"
+URIprefixValue = "locking-interest-ones-matt"
 
 st.set_page_config(
     page_title="Chat",
@@ -46,7 +46,16 @@ with st.sidebar:
     temp = st.number_input("Temperature", value=1, help="Default 1")                    #set low to get deterministic results
     #st.session_state.URIprefix = URIprefix.value
 
-    ttsOn = st.toggle("TTS")
+    ttsOn = st.toggle("TTS", value=True)
+
+def time_convert(sec):
+    mins = sec // 60
+    sec = sec % 60
+    hours = mins // 60
+    mins = mins % 60
+    #print("Time Lapsed = {0}:{1}:{2}".format(int(hours),int(mins),sec))
+    return ("Time Lapsed = {0}:{1}:{2}".format(int(hours),int(mins),sec))
+    
 
 async def run(user_input, history, stream, regenerate, continuation):
     history.append({"role": "user", "content": user_input})
@@ -222,10 +231,7 @@ def chat():
     if user_content := st.chat_input("Start typing..."): # using streamlit's st.chat_input because it stays put at bottom, chat.openai.com style.
         this(user_content)
         
-        #debug
-        print("-------------------------Messages---------------------")
-        print(st.session_state.messages)
-        #len(st.session_state.messages)
+        
     #else:
     #    st.sidebar.text_input(
     #        "Enter a random userid", on_change=userid_change, placeholder='userid', key='userid_input')
@@ -234,6 +240,10 @@ def chat():
 
 @st.cache_data()
 def TTS(txt):
+    #Start timer
+    start_time = time.time()
+
+
     sound_file = BytesIO()
     tts = gTTS(str(txt), lang='en')
     tts.write_to_fp(sound_file)
@@ -255,7 +265,16 @@ def TTS(txt):
 
     #st.audio(sound_file, autoplay=True)                                                        #autoplay doesnt seem to work
 
+    #stop timer
+    end_time = time.time()
+    time_lapsed = end_time - start_time
+    rounded_number = format(time_lapsed, ".2f")
+    st.write("TTS response time: " + str(rounded_number) + " seconds")
+
 def this(input):
+    #Start timer
+    start_time = time.time()
+
     #Assign keys to chat messages
     for i,message in enumerate(st.session_state.messages):
         nkey = int(i/2)
@@ -272,10 +291,71 @@ def this(input):
     st.session_state.messages.append({"role": "assistant", "content": assistant_content})
     streamlit_chat.message(assistant_content, key='chat_messages_assistant_'+str(nkey))
 
+    #debug
+    print("-------------------------Messages---------------------")
+    print(st.session_state.messages)
+    #len(st.session_state.messages)
+    
+    #stop timer
+    end_time = time.time()
+    time_lapsed = end_time - start_time
+    timer = time_convert(time_lapsed)
+
+    rounded_number = format(time_lapsed, ".2f") 
+
+    #st.write(timer)
+    st.write("LLM response time: " + str(rounded_number) + " seconds")
+
     if (ttsOn): TTS(assistant_content)
 
-def callback():
+style = """
+    <style>      
+      .myButton {
+        background-color: blue;
+        position: fixed;
+        bottom: 0;
+        width: 50%;
+        justify-content: center;
+        align-items: end;
+        margin-bottom: 0.5rem;
+      }
+
+      #stButton {
+        color: blue;
+        background-color: blue;
+      }
+
+
+      .row-widget stButton {
+        color: blue;
+        background-color: blue;
+
+      }
+    </style>
+    """
+
+# Inject the styling code for both elements
+st.markdown(style, unsafe_allow_html=True)
+
+
+height = 10
+
+st.markdown(
+    f"""<style>
+        .element-container:nth-of-type(3) button {{
+            height: {height}em;
+        }}
+        </style>""",
+    unsafe_allow_html=True,
+)
+
+#st.button("hello")
+
+def callback():    
     if st.session_state.my_stt_output:
+        #audio_time = int(st.session_state.my_stt_output['id'])
+        #st.write("time: " + str(audio_time))
+
         this(st.session_state.my_stt_output)
         #st.write(st.session_state.my_stt_output)
 
@@ -293,8 +373,12 @@ speech_to_text(
 def userid_change():
     st.session_state.userid = st.session_state.userid_input
 
+
+
+
 def main():
+    
     chat()
 
 if __name__ == '__main__':
-    main()
+    main()    
