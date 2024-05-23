@@ -25,7 +25,7 @@ HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
 
 # For reverse-proxied streaming, the remote will likely host with ssl - wss://
 # URI = 'wss://your-uri-here.trycloudflare.com/api/v1/stream'
-URIprefixValue = "remote-honors-desert-rg"
+URIprefixValue = "hebrew-below-cinema-sellers"
 
 st.set_page_config(
     page_title="Chat",
@@ -47,6 +47,7 @@ with st.sidebar:
     #st.session_state.URIprefix = URIprefix.value
 
     ttsOn = st.toggle("TTS", value=True)
+    historyOn = st.toggle("History", value=False)
 
 def time_convert(sec):
     mins = sec // 60
@@ -58,7 +59,10 @@ def time_convert(sec):
     
 
 async def run(user_input, history, stream, regenerate, continuation):
-    history.append({"role": "user", "content": user_input})
+    if historyOn:
+        history.append({"role": "user", "content": user_input})
+    else:
+        history = []
 
     headers = {
         "Content-Type": "application/json"
