@@ -30,7 +30,7 @@ URIprefixValue = "hebrew-below-cinema-sellers"
 st.set_page_config(
     page_title="Chat",
     page_icon="🤖",                         #👋
-    initial_sidebar_state="auto",           #collapsed
+    initial_sidebar_state="expanded",           #collapsed    #auto    #expanded
     #layout='wide'
 )
 
