@@ -59,10 +59,7 @@ def time_convert(sec):
     
 
 async def run(user_input, history, stream, regenerate, continuation):
-    if historyOn:
-        history.append({"role": "user", "content": user_input})
-    else:
-        history = []
+    history.append({"role": "user", "content": user_input})
 
     headers = {
         "Content-Type": "application/json"
@@ -72,7 +69,7 @@ async def run(user_input, history, stream, regenerate, continuation):
         'mode': 'chat',             #'mode': 'chat-instruct',        #'mode': 'instruct',
         'stream': stream,
         'messages': history,
-        'character': 'Arc',
+        'character': 'Arc 2',
         'instruction_template': 'Orca-Hashes',                       #WizardLM
         #'your_name': st.session_state.userid,                       #doesnt work?
 
@@ -122,16 +119,15 @@ async def run(user_input, history, stream, regenerate, continuation):
         payload = json.loads(event.data)
         chunk = payload['choices'][0]['message']['content']
         assistant_message += chunk
-        print(chunk, end='')
-        sys.stdout.flush()  # If we don't flush, we won't see tokens in realtime.
+        #print(chunk, end='')
+        #sys.stdout.flush()  # If we don't flush, we won't see tokens in realtime.
         element.write(assistant_message)
 
     element.empty()
-    history.append({"role": "assistant", "content": assistant_message})
 
-    print()
-    print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
-    print(history)
+    #print()
+    #print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
+    #print(history)
     return assistant_message
 
 #Be sure to end each prompt string with a comma.
@@ -167,7 +163,7 @@ def complete_messages(nbegin,nend,stream,regenerate,continuation):
             ]
     with st.spinner(f"Waiting for {nbegin}/{nend} responses..."):
         response_content = asyncio.run(run(st.session_state.messages[-1]['content'], messages, stream, regenerate, continuation))
-        print(response_content)
+        #print(response_content)
 
         #using OPENAI?
             #response = openai.ChatCompletion.create(
@@ -296,8 +292,8 @@ def this(input):
     streamlit_chat.message(assistant_content, key='chat_messages_assistant_'+str(nkey))
 
     #debug
-    print("-------------------------Messages---------------------")
-    print(st.session_state.messages)
+    #print("-------------------------Messages---------------------")
+    #print(st.session_state.messages)
     #len(st.session_state.messages)
     
     #stop timer
@@ -311,6 +307,12 @@ def this(input):
     st.write("LLM response time: " + str(rounded_number) + " seconds")
 
     if (ttsOn): TTS(assistant_content)
+
+    #print("-------------------------Messages---------------------")
+    #print(st.session_state.messages)
+
+    if not historyOn:
+        st.session_state.messages = []
 
 style = """
     <style>      
@@ -377,11 +379,7 @@ speech_to_text(
 def userid_change():
     st.session_state.userid = st.session_state.userid_input
 
-
-
-
 def main():
-    
     chat()
 
 if __name__ == '__main__':
