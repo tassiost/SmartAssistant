@@ -47,7 +47,7 @@ with st.sidebar:
     #st.session_state.URIprefix = URIprefix.value
 
     ttsOn = st.toggle("TTS", value=True)
-    historyOn = st.toggle("History", value=False)
+    historyOn = st.toggle("History", value=True)
 
 def time_convert(sec):
     mins = sec // 60
