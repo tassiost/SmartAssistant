@@ -204,6 +204,7 @@ def chat():
             assistant_content = complete_messages(i,len(example_user_prompts), True, False, False)
             st.session_state.messages.append({"role": "assistant", "content": assistant_content})
         move_focus()
+        this(st.session_state.messages)
 
     #st.write(st.session_state.messages)            #debug
         
