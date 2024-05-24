@@ -25,7 +25,7 @@ HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
 
 # For reverse-proxied streaming, the remote will likely host with ssl - wss://
 # URI = 'wss://your-uri-here.trycloudflare.com/api/v1/stream'
-URIprefixValue = "established-phases-comedy-natural"
+URIprefixValue = "infrared-disable-interviews-dublin"
 
 st.set_page_config(
     page_title="Chat",
