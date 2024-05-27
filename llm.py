@@ -1,62 +1,65 @@
+import time         #timer
 import asyncio      #async
 import sseclient    #streaming
-import sys          #streaming
 
 import requests     #api call
 import json         #api call
 import base64       #encode audio
 
-import time         #timer
+#Streamlit
+import streamlit as st
+import streamlit_chat
 
 #TTS
 from gtts import gTTS
 from io import BytesIO
 
-#Streamlit
-import streamlit as st
-import streamlit_chat
+#STT
+from streamlit_mic_recorder import speech_to_text
 
-#Record
-from streamlit_mic_recorder import mic_recorder, speech_to_text
+#IMPORTANT URI prefix (found in Oobabooga terminal)
+URIprefixValue = "friendship-origins-antarctica-spirituality"
 
-# For local streaming, the websockets are hosted without ssl - ws://
-PORT = 7860                         #default port
-HOST = f'localhost:{PORT}'          #HOST = 'localhost:5005'
-
-# For reverse-proxied streaming, the remote will likely host with ssl - wss://
-# URI = 'wss://your-uri-here.trycloudflare.com/api/v1/stream'
-URIprefixValue = "infrared-disable-interviews-dublin"
+#Make sure to end each prompt string with a comma.
+exampleUserPrompts = [
+    "who are you?",
+    "what is your name?",
+    "what is your real name?",
+    "what is your purpose?",
+    "echo Hello World!",
+    "what color is the sun?",
+    "how old is Elon Musk?",
+    "what makes a good joke?",
+    "tell me a haiku.",
+    "what was the first question I asked?",
+]
 
 st.set_page_config(
-    page_title="Chat",
-    page_icon="🤖",                         #👋
-    initial_sidebar_state="expanded",           #collapsed    #auto    #expanded
+    page_title="Smart Assistant",
+    page_icon="🤖",
+    initial_sidebar_state="auto", #collapsed
     #layout='wide'
 )
 
 with st.sidebar:
+    st.subheader("Server")
+    #URI prefix
     if "URIpre" not in st.session_state:
-        #st.session_state.URIpre = URIprefixValue
-        st.text_input(label="URI prefix", key="URIpre", value=URIprefixValue, placeholder=URIprefixValue, help="The URI prefix")    #set uri prefix from textgenUI
+        st.text_input(label="URI prefix", key="URIpre", value=URIprefixValue, placeholder=URIprefixValue, help="The URI prefix. Ask Tassio Steinmann for access.") #set uri prefix from Oobabooga
     else:
-        st.text_input(label="URI prefix", key="URIpre", value=st.session_state.URIpre, placeholder=st.session_state.URIpre, help="The URI prefix")    #set uri prefix from textgenUI
-    #st.write(st.session_state.URIpre)
+        st.text_input(label="URI prefix", key="URIpre", value=st.session_state.URIpre, placeholder=st.session_state.URIpre, help="The URI prefix. Ask Tassio Steinmann for access.")
 
-    URI = f'http://{st.session_state.URIpre}.trycloudflare.com/v1/chat/completions'     #add prefix to get complete URI
-    temp = st.number_input("Temperature", value=1, help="Default 1")                    #set low to get deterministic results
-    #st.session_state.URIprefix = URIprefix.value
+    URI = f'http://{st.session_state.URIpre}.trycloudflare.com/v1/chat/completions' #add prefix to get complete URI
 
-    ttsOn = st.toggle("TTS", value=True)
-    historyOn = st.toggle("History", value=True)
+    #Parameters
+    temperature = st.slider("Temperature", value=0.7, min_value=0.05, max_value=1.5, help="Default 0.7. Higher values lead to more variation, randomness and creativity.")
 
-def time_convert(sec):
-    mins = sec // 60
-    sec = sec % 60
-    hours = mins // 60
-    mins = mins % 60
-    #print("Time Lapsed = {0}:{1}:{2}".format(int(hours),int(mins),sec))
-    return ("Time Lapsed = {0}:{1}:{2}".format(int(hours),int(mins),sec))
-    
+    #st.divider()
+
+    st.subheader("Client")
+    #Toggles
+    ttsOn = st.toggle("Text to Speech", value=True, help="Toggle Text to Speech")
+    historyOn = st.toggle("History", value=True, help="Toggle History. When enabled use the Clear Conversation button to wipe the memory")
 
 async def run(user_input, history, stream, regenerate, continuation):
     history.append({"role": "user", "content": user_input})
@@ -66,12 +69,12 @@ async def run(user_input, history, stream, regenerate, continuation):
     }
     
     data = {
-        'mode': 'chat',             #'mode': 'chat-instruct',        #'mode': 'instruct',
+        'mode': 'chat', #'mode': 'chat-instruct', #'mode': 'instruct',
         'stream': stream,
         'messages': history,
         'character': 'Arc 2',
-        'instruction_template': 'Orca-Hashes',                       #WizardLM
-        #'your_name': st.session_state.userid,                       #doesnt work?
+        'instruction_template': 'Orca-Hashes', #WizardLM
+        'your_name': 'Tassio Steinmann', #doesnt work?
 
         'regenerate': regenerate,
         '_continue': continuation,
@@ -81,7 +84,7 @@ async def run(user_input, history, stream, regenerate, continuation):
         #'chat-instruct_command': 'Continue the chat dialogue below. Write a single reply for the character "<|character|>".\n\n<|prompt|>',
         #'max_new_tokens': 250,
         #'do_sample': True,
-        'temperature': temp,
+        'temperature': temperature,
         #'top_p': 0.1,
         #'typical_p': 1,
         #'epsilon_cutoff': 0,  # In units of 1e-4
@@ -107,44 +110,24 @@ async def run(user_input, history, stream, regenerate, continuation):
         #'stopping_strings': []
     }
 
-    stream_response = requests.post(URI, headers=headers, json=data, verify=False, stream=True)
-    if str(stream_response) != "<Response [200]>":
-        st.error("Server down or not set correct URI")
+    streamResponse = requests.post(URI, headers=headers, json=data, verify=False, stream=True)
+    if str(streamResponse) != "<Response [200]>":
+        st.error("Server down or not set correct URI prefix in sidebar")
 
-    client = sseclient.SSEClient(stream_response)
-    
-    element = st.empty()
-    assistant_message = ''
-    for event in client.events():
+    #Streaming text
+    client = sseclient.SSEClient(streamResponse)
+    element = st.empty()                    
+    assistantMessage = ''
+    for event in client.events(): #try using st.write_stream
         payload = json.loads(event.data)
         chunk = payload['choices'][0]['message']['content']
-        assistant_message += chunk
-        #print(chunk, end='')
-        #sys.stdout.flush()  # If we don't flush, we won't see tokens in realtime.
-        element.write(assistant_message)
+        assistantMessage += chunk
+        element.write(assistantMessage)
+    element.empty() #remove streamed text to replace with text message                         
 
-    element.empty()
+    return assistantMessage
 
-    #print()
-    #print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
-    #print(history)
-    return assistant_message
-
-#Be sure to end each prompt string with a comma.
-example_user_prompts = [
-    "who are you?",
-    "what is your name?",
-    "what is your real name?",
-    "what is your purpose?",
-    "echo Hello World!",
-    "how old is Elon Musk?",
-    "what makes a good joke?",
-    "tell me a haiku.",
-    "what is the first question I asked?",
-]
-
-def move_focus():
-    #Inspect the html to determine which control to specify to receive focus (e.g. text or textarea).
+def moveFocus():
     st.components.v1.html(
         f"""
             <script>
@@ -154,234 +137,130 @@ def move_focus():
                 }}
             </script>
         """,
+        height = 0,
     )
 
-def complete_messages(nbegin,nend,stream,regenerate,continuation):
+def completeMessages(nbegin, nend, stream, regenerate, continuation):
     messages = [
                 {"role": m["role"], "content": m["content"]}
                 for m in st.session_state.messages
             ]
     with st.spinner(f"Waiting for {nbegin}/{nend} responses..."):
-        response_content = asyncio.run(run(st.session_state.messages[-1]['content'], messages, stream, regenerate, continuation))
-        #print(response_content)
-
-        #using OPENAI?
-            #response = openai.ChatCompletion.create(
-            #    model=st.session_state["openai_model"],
-            #    messages=[
-            #        {"role": m["role"], "content": m["content"]}
-            #        for m in st.session_state.messages
-            #    ],
-            #    stream=False,
-            #)
-            #response_content = response.choices[0]['message'].get("content","")
-            #response_content = asyncio.run(run(st.session_state.messages[-1]['content'], messages, stream, regenerate))
-            #print(response_content)
-    return response_content
+        responseContent = asyncio.run(run(st.session_state.messages[-1]['content'], messages, stream, regenerate, continuation))
+    return responseContent
 
 def chat():
-    #if "openai_model" not in st.session_state:
-    #    st.session_state["openai_model"] = "gpt-3.5-turbo"
-
     if "messages" not in st.session_state:
         st.session_state.messages = []
-
-    #if "userid" not in st.session_state:
-    #    st.session_state.userid = "You"
-    #else:
-    #    st.sidebar.text_input("Current userid", on_change=userid_change, placeholder=st.session_state.userid, key='userid_input')
         
     #Clear conversation
-    if st.sidebar.button("Clear Conversation", key='clear_chat_button'):
+    if st.sidebar.button("Clear Conversation", key='clear_chat_button', help="Wipe memory"):
         st.session_state.messages = []
-        move_focus()
+        moveFocus()
+
+    #Chat input
+    if userContent := st.chat_input("Start typing..."): #using streamlit's st.chat_input because it stays put at bottom
+        chatInteraction(userContent, False)
 
     #Example conversation
     if st.sidebar.button("Show Example Conversation", key='show_example_conversation'):
-        #st.session_state.messages = []                         #don't clear current conversations?
-        for i,up in enumerate(example_user_prompts):
+        st.session_state.messages = [] #clear current conversations?
+        for i, up in enumerate(exampleUserPrompts):
             st.session_state.messages.append({"role": "user", "content": up})
-            assistant_content = complete_messages(i,len(example_user_prompts), True, False, False)
-            st.session_state.messages.append({"role": "assistant", "content": assistant_content})
-        move_focus()
-        this(st.session_state.messages)
-
-    #st.write(st.session_state.messages)            #debug
+            assistantContent = completeMessages(i, len(exampleUserPrompts), True, False, False)
+            st.session_state.messages.append({"role": "assistant", "content": assistantContent})
+        st.session_state.messages.pop()
+        chatInteraction(st.session_state.messages, True)
+        moveFocus()
         
-    #Regenerate & continue
-    if (len(st.session_state.messages) > 0):        #only let regenerate and continue if something was already asked
+    #Regenerate & Continue
+    if (len(st.session_state.messages) > 0): #only let regenerate and continue if something was already asked
         #Regenerate
         if st.sidebar.button("Regenerate", key='regenerate'):
-            st.session_state.messages.pop()         #remove last answer to regenerate
-            assistant_content = complete_messages(0,1, True, True, False)
-            st.session_state.messages.append({"role": "assistant", "content": assistant_content})
-            if (ttsOn): TTS(assistant_content)
-            move_focus()
+            lastAnswer = st.session_state.messages[-1]
+            st.session_state.messages.pop()
+            chatInteraction(lastAnswer, True)
+            moveFocus()
             
         #Continue
         if st.sidebar.button("Continue", key='continue'):
-            st.session_state.messages.pop()         #TODO: instead of regenerating try not to pop but adjust the key
-            assistant_content = complete_messages(0,1, True, False, True)
-            st.session_state.messages.append({"role": "assistant", "content": assistant_content})
-            if (ttsOn): TTS(assistant_content)
-            move_focus()
-
-    
-
-    #Chat input
-    if user_content := st.chat_input("Start typing..."): # using streamlit's st.chat_input because it stays put at bottom, chat.openai.com style.
-        this(user_content)
-        
-        
-    #else:
-    #    st.sidebar.text_input(
-    #        "Enter a random userid", on_change=userid_change, placeholder='userid', key='userid_input')
-    #    streamlit_chat.message("Hi. I'm your friendly streamlit ChatGPT assistant.",key='intro_message_1')
-    #    streamlit_chat.message("To get started, enter a random userid in the left sidebar.",key='intro_message_2')
+            chatInteraction("Continue", False)
+            moveFocus()
 
 @st.cache_data()
 def TTS(txt):
-    #Start timer
-    start_time = time.time()
+    startTime = time.time() #Start timer
 
-
-    sound_file = BytesIO()
+    soundFile = BytesIO()
     tts = gTTS(str(txt), lang='en')
-    tts.write_to_fp(sound_file)
+    tts.write_to_fp(soundFile)
     tts.save('temp.mp3')
 
-    # Read the audio file and encode it to base64
-    with open('temp.mp3', "rb") as audio_file:
-        audio_bytes = base64.b64encode(audio_file.read()).decode()
+    #Read the audio file and encode it to base64
+    with open('temp.mp3', "rb") as audioFile:
+        audioBytes = base64.b64encode(audioFile.read()).decode()
 
-    # Use HTML to embed audio with autoplay
-    st.markdown(
-        f'<audio autoplay="true" controls style="width:100%;">><source src="data:audio/mp3;base64,{audio_bytes}" type="audio/mp3"></audio>',
+    #st.audio(soundFile, autoplay=True) #autoplay doesn't work yet
+    st.markdown( #Use HTML to embed audio with autoplay
+        f'<audio autoplay="true" controls style="width:100%;">><source src="data:audio/mp3;base64,{audioBytes}" type="audio/mp3"></audio>',
         unsafe_allow_html=True,
-    )
+    )    
 
-    #audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')                               #expects audio?
-    #audio_tag = f'<audio autoplay="true" src="data:audio/wav;base64,{audio_base64}">'
-    #st.markdown(audio_tag, unsafe_allow_html=True)
+    stopTimer(startTime, "TTS") #Stop timer
 
-    #st.audio(sound_file, autoplay=True)                                                        #autoplay doesnt seem to work
-
-    #stop timer
-    end_time = time.time()
-    time_lapsed = end_time - start_time
-    rounded_number = format(time_lapsed, ".2f")
-    st.write("TTS response time: " + str(rounded_number) + " seconds")
-
-def this(input):
-    #Start timer
-    start_time = time.time()
+def chatInteraction(input, skipUser):
+    startTime = time.time() #Start timer
 
     #Assign keys to chat messages
-    for i,message in enumerate(st.session_state.messages):
+    for i, message in enumerate(st.session_state.messages):
         nkey = int(i/2)
         if message["role"] == "user":
-            streamlit_chat.message(message["content"], is_user=True, key='chat_messages_user_'+str(nkey))
+            streamlit_chat.message(message["content"], is_user=True, key='chat_messages_user_' + str(nkey))
         else:
-            streamlit_chat.message(message["content"], is_user=False, key='chat_messages_assistant_'+str(nkey))
+            streamlit_chat.message(message["content"], is_user=False, key='chat_messages_assistant_' + str(nkey))
+    nkey = int(len(st.session_state.messages) / 2 + 1)
 
-    nkey = int(len(st.session_state.messages)/2 + 1)
-    st.session_state.messages.append({"role": "user", "content": input})
-    streamlit_chat.message(input, is_user=True, key='chat_messages_user_'+str(nkey))
+    if (not skipUser):
+        st.session_state.messages.append({"role": "user", "content": input})
+        streamlit_chat.message(input, is_user=True, key='chat_messages_user_' + str(nkey))
     
-    assistant_content = complete_messages(0,1, True, False, False)
-    st.session_state.messages.append({"role": "assistant", "content": assistant_content})
-    streamlit_chat.message(assistant_content, key='chat_messages_assistant_'+str(nkey))
-
-    #debug
-    #print("-------------------------Messages---------------------")
-    #print(st.session_state.messages)
-    #len(st.session_state.messages)
+    assistantContent = completeMessages(0, 1, True, False, False)
+    while (assistantContent == ''): #Regenerate if answer is empty
+        assistantContent = completeMessages(0, 1, True, True, False)
+    st.session_state.messages.append({"role": "assistant", "content": assistantContent})
+    streamlit_chat.message(assistantContent, key='chat_messages_assistant_' + str(nkey))
     
-    #stop timer
-    end_time = time.time()
-    time_lapsed = end_time - start_time
-    timer = time_convert(time_lapsed)
+    stopTimer(startTime, "LLM") #Stop timer
 
-    rounded_number = format(time_lapsed, ".2f") 
-
-    #st.write(timer)
-    st.write("LLM response time: " + str(rounded_number) + " seconds")
-
-    if (ttsOn): TTS(assistant_content)
-
-    #print("-------------------------Messages---------------------")
-    #print(st.session_state.messages)
+    if (ttsOn): TTS(assistantContent)
 
     if not historyOn:
         st.session_state.messages = []
 
-style = """
-    <style>      
-      .myButton {
-        background-color: blue;
-        position: fixed;
-        bottom: 0;
-        width: 50%;
-        justify-content: center;
-        align-items: end;
-        margin-bottom: 0.5rem;
-      }
-
-      #stButton {
-        color: blue;
-        background-color: blue;
-      }
-
-
-      .row-widget stButton {
-        color: blue;
-        background-color: blue;
-
-      }
-    </style>
-    """
-
-# Inject the styling code for both elements
-st.markdown(style, unsafe_allow_html=True)
-
-
-height = 10
-
-st.markdown(
-    f"""<style>
-        .element-container:nth-of-type(3) button {{
-            height: {height}em;
-        }}
-        </style>""",
-    unsafe_allow_html=True,
-)
-
-#st.button("hello")
+def stopTimer(startTime, string):
+    endTime = time.time()
+    timeLapsed = endTime - startTime
+    roundedNumber = format(timeLapsed, ".2f")
+    st.write(string + " response time: " + str(roundedNumber) + " seconds")
 
 def callback():    
     if st.session_state.my_stt_output:
-        #audio_time = int(st.session_state.my_stt_output['id'])
-        #st.write("time: " + str(audio_time))
-
-        this(st.session_state.my_stt_output)
-        #st.write(st.session_state.my_stt_output)
-
-speech_to_text(
-    language='en',
-    start_prompt="Start recording",
-    stop_prompt="Stop recording",
-    just_once=True,
-    use_container_width=False,
-    args=(),
-    kwargs={},
-    key='my_stt', 
-    callback=callback)
-
-def userid_change():
-    st.session_state.userid = st.session_state.userid_input
+        chatInteraction(st.session_state.my_stt_output, False)
+        moveFocus()
 
 def main():
     chat()
 
+    speech_to_text(
+        language='en',
+        start_prompt="Start recording",
+        stop_prompt="Stop recording",
+        just_once=True,
+        use_container_width=True,
+        args=(),
+        kwargs={},
+        key='my_stt', 
+        callback=callback)
+
 if __name__ == '__main__':
-    main()    
+    main()
